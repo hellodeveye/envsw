@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# envsw — global env-profile switcher ("iHosts for environment variables").
+#
+# Profiles live in ~/.envsw/<group>/<profile>.env (plain KEY=VALUE lines).
+# A "current" symlink per group marks the active profile. Every NEW shell /
+# process auto-loads all active profiles via the envsw hook in your shell
+# startup file (see README). Already-running shells keep their old values
+# (env vars are inherited at process start) — that is a property of Unix,
+# not of this tool.
+set -euo pipefail
+
+ENVSW_VERSION="0.1.0"
+ROOT="${ENVSW_ROOT:-$HOME/.envsw}"
+
+# ---------- colors (tty only; respects NO_COLOR; force with ENVSW_COLOR=1) ----------
+if { [ -t 1 ] || [ "${ENVSW_COLOR:-}" = 1 ]; } && [ -z "${NO_COLOR:-}" ]; then
+  RST=$'\033[0m' BLD=$'\033[1m' DIM=$'\033[2m'
+  GRN=$'\033[32m' RED=$'\033[31m' YLW=$'\033[33m' CYN=$'\033[36m'
+else
+  RST='' BLD='' DIM='' GRN='' RED='' YLW='' CYN=''
+fi
+
+is_danger() { # prod-like profiles get the red treatment
+  case "$1" in prod|production|online|live) return 0 ;; *) return 1 ;; esac
+}
+
+paint() { # profile name, colored by danger level
+  if is_danger "$1"; then printf '%s' "$RED$1$RST"; else printf '%s' "$GRN$1$RST"; fi
+}
+
+usage() {
+  cat <<EOF
+${BLD}envsw${RST} v${ENVSW_VERSION} — switch env-variable profiles globally (affects new shells/processes)
+
+${BLD}Usage:${RST}
+  envsw                         same as list
+  envsw list                    all groups and profiles; ${GRN}●${RST} marks the active one
+  envsw use <group> <profile>   activate a profile for the group
+  envsw show [group]            print active profile contents (values masked)
+  envsw edit <group> <profile>  create/edit a profile in \$EDITOR
+  envsw off <group>             deactivate the group
+
+${BLD}Example:${RST}
+  envsw use myapp ${RED}prod${RST}
+  envsw use myapp ${GRN}dev${RST}
+EOF
+}
+
+active_of() { # group -> profile name or ""
+  local link="$ROOT/$1/current"
+  [ -L "$link" ] && basename "$(readlink "$link")" .env || true
+}
+
+cmd="${1:-list}"
+case "$cmd" in
+list)
+  [ -d "$ROOT" ] || { echo "no profiles yet — try: envsw edit <group> <profile>"; exit 0; }
+  found=0
+  for dir in "$ROOT"/*/; do
+    [ -d "$dir" ] || continue
+    found=1
+    group="$(basename "$dir")"
+    act="$(active_of "$group")"
+    echo "${BLD}${CYN}${group}${RST}"
+    for f in "$dir"*.env; do
+      [ -f "$f" ] || continue
+      p="$(basename "$f" .env)"
+      if [ "$p" = "$act" ]; then
+        echo "  ${GRN}●${RST} $(paint "$p") ${DIM}(active)${RST}"
+      else
+        echo "  ${DIM}○ ${p}${RST}"
+      fi
+    done
+    [ -n "$act" ] || echo "  ${DIM}(none active)${RST}"
+  done
+  [ "$found" = 1 ] || echo "no profiles yet — try: envsw edit <group> <profile>"
+  ;;
+use)
+  group="${2:?usage: envsw use <group> <profile>}"
+  profile="${3:?usage: envsw use <group> <profile>}"
+  file="$ROOT/$group/$profile.env"
+  [ -f "$file" ] || { echo "${RED}error:${RST} $file not found (create it with: envsw edit $group $profile)" >&2; exit 1; }
+  ln -sfn "$profile.env" "$ROOT/$group/current"
+  echo "${BLD}${CYN}${group}${RST} → $(paint "$profile") ${DIM}(new shells/processes will pick it up)${RST}"
+  if is_danger "$profile"; then
+    echo "${YLW}⚠ production profile active${RST} — every new command now targets ${RED}${profile}${RST}; switch back with ${GRN}envsw use $group dev${RST}"
+  fi
+  ;;
+show)
+  group="${2:-}"
+  if [ -n "$group" ]; then groups=("$group"); else groups=(); for d in "$ROOT"/*/; do [ -d "$d" ] && groups+=("$(basename "$d")"); done; fi
+  for g in "${groups[@]}"; do
+    act="$(active_of "$g")"
+    if [ -z "$act" ]; then echo "${BLD}${CYN}${g}${RST}: ${DIM}(none active)${RST}"; continue; fi
+    echo "${BLD}${CYN}${g}${RST}: $(paint "$act")"
+    # mask everything after the first 4 chars of each value
+    sed -E 's/^([A-Za-z_][A-Za-z0-9_]*=.{0,4}).*/\1****/' "$ROOT/$g/current" | sed "s/^/  ${DIM}/;s/\$/${RST}/"
+  done
+  ;;
+edit)
+  group="${2:?usage: envsw edit <group> <profile>}"
+  profile="${3:?usage: envsw edit <group> <profile>}"
+  mkdir -p "$ROOT/$group"
+  chmod 700 "$ROOT" "$ROOT/$group"
+  file="$ROOT/$group/$profile.env"
+  [ -f "$file" ] || printf '# %s / %s — KEY=VALUE per line, no "export"\n' "$group" "$profile" > "$file"
+  chmod 600 "$file"
+  "${EDITOR:-vi}" "$file"
+  ;;
+off)
+  group="${2:?usage: envsw off <group>}"
+  rm -f "$ROOT/$group/current"
+  echo "${YLW}${group} deactivated${RST}"
+  ;;
+-v|--version|version) echo "envsw $ENVSW_VERSION" ;;
+-h|--help|help) usage ;;
+*) usage; exit 1 ;;
+esac
