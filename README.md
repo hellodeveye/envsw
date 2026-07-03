@@ -28,6 +28,14 @@ Existing tools solve a different shape of this problem:
 
 ## Install
 
+One-line install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hellodeveye/envsw/main/install.sh | bash
+```
+
+Or install from a local clone:
+
 ```bash
 git clone https://github.com/hellodeveye/envsw.git
 cd envsw && ./install.sh

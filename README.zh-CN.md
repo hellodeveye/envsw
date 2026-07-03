@@ -28,6 +28,14 @@ myapp
 
 ## 安装
 
+一键安装：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hellodeveye/envsw/main/install.sh | bash
+```
+
+或者从本地 clone 安装：
+
 ```bash
 git clone https://github.com/hellodeveye/envsw.git
 cd envsw && ./install.sh
