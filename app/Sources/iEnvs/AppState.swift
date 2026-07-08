@@ -21,7 +21,9 @@ final class AppState: ObservableObject {
     func reload() { groups = store.scan() }
 
     func use(group: String, profile: String) {
-        run { try store.use(group: group, profile: profile) }
+        if run({ try store.use(group: group, profile: profile) }), Danger.isDangerous(profile) {
+            Notifier.dangerActivated(group: group, profile: profile)
+        }
     }
 
     func off(group: String) {
