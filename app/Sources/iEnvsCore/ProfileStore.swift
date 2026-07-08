@@ -127,6 +127,9 @@ public final class ProfileStore {
 
     public func writeProfile(group: String, profile: String, contents: String) throws {
         let file = root.appendingPathComponent(group).appendingPathComponent("\(profile).env")
+        guard fm.fileExists(atPath: file.path) else {
+            throw ProfileStoreError.profileNotFound(group: group, profile: profile)
+        }
         try contents.write(to: file, atomically: true, encoding: .utf8)
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }

@@ -123,6 +123,21 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertEqual(try perms(root.appendingPathComponent("myapp/dev.env")), 0o600)
     }
 
+    func testWriteMissingProfileThrowsAndDoesNotCreateFile() throws {
+        try store.createGroup("myapp")
+        let file = root.appendingPathComponent("myapp/ghost.env")
+
+        XCTAssertThrowsError(
+            try store.writeProfile(group: "myapp", profile: "ghost", contents: "A=1\n")
+        ) { error in
+            XCTAssertEqual(
+                error as? ProfileStoreError,
+                .profileNotFound(group: "myapp", profile: "ghost")
+            )
+        }
+        XCTAssertFalse(fm.fileExists(atPath: file.path))
+    }
+
     func testDeleteActiveProfileClearsCurrent() throws {
         try makeGroup("myapp", profiles: ["dev", "prod"], active: "dev")
 
