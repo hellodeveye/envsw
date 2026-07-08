@@ -1,4 +1,4 @@
-# EnvSw 菜单栏 App 设计文档
+# iEnvs 菜单栏 App 设计文档
 
 日期：2026-07-08
 状态：已确认（用户认可）
@@ -7,7 +7,7 @@
 
 envsw 是一个 bash CLI：以 `~/.envsw/<group>/<profile>.env` 文件 + 每组一个 `current` 软链接管理环境变量配置组，配合 shell 启动钩子让新进程自动加载激活的配置（"环境变量版 iHosts"）。
 
-本项目为其构建 macOS 原生菜单栏 App（暂定名 **EnvSw**），提供与 [iHosts](https://github.com/toolinbox/iHosts) 同构的交互：菜单栏点选即切换配置。GUI 是 `~/.envsw` 的"遥控器"，不引入自己的数据格式，与 CLI 完全互通。
+本项目为其构建 macOS 原生菜单栏 App（暂定名 **iEnvs**），提供与 [iHosts](https://github.com/toolinbox/iHosts) 同构的交互：菜单栏点选即切换配置。GUI 是 `~/.envsw` 的"遥控器"，不引入自己的数据格式，与 CLI 完全互通。
 
 **评估结论（前置）：** 可行且比 iHosts 更容易 —— 所有文件在用户主目录，无需特权/提权；状态层（文件 + 软链接）已由 CLI 定义好。固有限制与 CLI 相同：环境变量在进程启动时继承，切换只影响**新**进程，GUI 需在 UI 中显式说明。
 
