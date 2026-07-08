@@ -89,6 +89,17 @@ MYAPP_DB_URL=mysql://user:pass@dev-host:3306/mydb
 
 用 `ENVSW_ROOT` 环境变量可以改 profile 存放目录（默认 `~/.envsw`）。
 
+## 桌面版（iEnvs）
+
+[`app/`](app/) 目录内置 macOS 原生菜单栏 App：点选即切换配置，激活 prod 类
+配置时图标变红，内置配置编辑器，并自动与 CLI 保持同步。
+
+```bash
+app/scripts/make-app.sh && open app/build/iEnvs.app
+```
+
+构建需要 macOS 13+ 与 Xcode 命令行工具。
+
 ## 许可
 
 [MIT](LICENSE)

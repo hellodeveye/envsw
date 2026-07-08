@@ -91,6 +91,18 @@ Environment variables are inherited at process start — nothing can change them
 
 Set `ENVSW_ROOT` to relocate the profile directory (default `~/.envsw`).
 
+## Desktop app (iEnvs)
+
+A native macOS menu bar companion lives in [`app/`](app/) — click to switch
+profiles, red icon when a prod-like profile is active, built-in profile
+editor, and it stays in sync with the CLI automatically.
+
+```bash
+app/scripts/make-app.sh && open app/build/iEnvs.app
+```
+
+Requires macOS 13+ and Xcode command line tools to build.
+
 ## License
 
 [MIT](LICENSE)
