@@ -63,6 +63,20 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertEqual(groups[0].profiles.map(\.name), ["dev"])   // .txt ignored
     }
 
+    func testScanIgnoresEnvDirectoriesAndHiddenEnvFiles() throws {
+        try makeGroup("myapp", profiles: ["dev"], active: nil)
+        let dir = root.appendingPathComponent("myapp", isDirectory: true)
+        try fm.createDirectory(at: dir.appendingPathComponent("prod.env", isDirectory: true),
+                               withIntermediateDirectories: false)
+        try "SECRET=1\n".write(to: dir.appendingPathComponent(".hidden.env"),
+                               atomically: true, encoding: .utf8)
+
+        let groups = store.scan()
+
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].profiles.map(\.name), ["dev"])
+    }
+
     // MARK: use / off
 
     func testUseRepointsSymlinkWithRelativeDestination() throws {
@@ -80,6 +94,18 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.use(group: "myapp", profile: "ghost")) { error in
             XCTAssertEqual(error as? ProfileStoreError,
                            .profileNotFound(group: "myapp", profile: "ghost"))
+        }
+    }
+
+    func testUseRejectsEnvDirectory() throws {
+        let dir = root.appendingPathComponent("myapp", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: dir.appendingPathComponent("prod.env", isDirectory: true),
+                               withIntermediateDirectories: false)
+
+        XCTAssertThrowsError(try store.use(group: "myapp", profile: "prod")) { error in
+            XCTAssertEqual(error as? ProfileStoreError,
+                           .profileNotFound(group: "myapp", profile: "prod"))
         }
     }
 
@@ -114,6 +140,20 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "KEY=dev\n")
     }
 
+    func testCreateProfileRejectsEnvDirectoryAndDoesNotChmodIt() throws {
+        let dir = root.appendingPathComponent("myapp", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let profileDir = dir.appendingPathComponent("prod.env", isDirectory: true)
+        try fm.createDirectory(at: profileDir, withIntermediateDirectories: false)
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: profileDir.path)
+
+        XCTAssertThrowsError(try store.createProfile(group: "myapp", profile: "prod")) { error in
+            XCTAssertEqual(error as? ProfileStoreError,
+                           .profileNotFound(group: "myapp", profile: "prod"))
+        }
+        XCTAssertEqual(try perms(profileDir), 0o700)
+    }
+
     func testWriteAndReadProfileKeepsPermissions() throws {
         try store.createProfile(group: "myapp", profile: "dev")
 
@@ -136,6 +176,39 @@ final class ProfileStoreTests: XCTestCase {
             )
         }
         XCTAssertFalse(fm.fileExists(atPath: file.path))
+    }
+
+    func testReadWriteDeleteRejectEnvDirectory() throws {
+        let dir = root.appendingPathComponent("myapp", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: dir.appendingPathComponent("prod.env", isDirectory: true),
+                               withIntermediateDirectories: false)
+
+        XCTAssertThrowsError(try store.readProfile(group: "myapp", profile: "prod"))
+        XCTAssertThrowsError(try store.writeProfile(group: "myapp", profile: "prod", contents: "A=1\n")) { error in
+            XCTAssertEqual(error as? ProfileStoreError,
+                           .profileNotFound(group: "myapp", profile: "prod"))
+        }
+        XCTAssertThrowsError(try store.deleteProfile(group: "myapp", profile: "prod")) { error in
+            XCTAssertEqual(error as? ProfileStoreError,
+                           .profileNotFound(group: "myapp", profile: "prod"))
+        }
+    }
+
+    func testScanIgnoresActiveSymlinkPointingToEnvDirectory() throws {
+        let dir = root.appendingPathComponent("myapp", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try "KEY=dev\n".write(to: dir.appendingPathComponent("dev.env"),
+                              atomically: true, encoding: .utf8)
+        try fm.createDirectory(at: dir.appendingPathComponent("prod.env", isDirectory: true),
+                               withIntermediateDirectories: false)
+        try fm.createSymbolicLink(atPath: dir.appendingPathComponent("current").path,
+                                  withDestinationPath: "prod.env")
+
+        let groups = store.scan()
+
+        XCTAssertEqual(groups[0].profiles.map(\.name), ["dev"])
+        XCTAssertNil(groups[0].activeProfileName)
     }
 
     func testDeleteActiveProfileClearsCurrent() throws {

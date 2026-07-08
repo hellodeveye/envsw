@@ -41,9 +41,14 @@ public final class ProfileStore {
         var groups: [ProfileGroup] = []
         for dir in entries {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
-            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+            let files = (try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
             let profiles = files
                 .filter { $0.pathExtension == "env" }
+                .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true }
                 .map { Profile(name: $0.deletingPathExtension().lastPathComponent, url: $0) }
                 .sorted { $0.name < $1.name }
             groups.append(ProfileGroup(name: dir.lastPathComponent,
@@ -59,10 +64,7 @@ public final class ProfileStore {
         try validate(group)
         try validate(profile)
         let dir = root.appendingPathComponent(group, isDirectory: true)
-        let file = dir.appendingPathComponent("\(profile).env")
-        guard fm.fileExists(atPath: file.path) else {
-            throw ProfileStoreError.profileNotFound(group: group, profile: profile)
-        }
+        _ = try regularProfileURL(group: group, profile: profile)
         let link = dir.appendingPathComponent("current")
         try? fm.removeItem(at: link) // ln -sfn semantics
         try fm.createSymbolicLink(atPath: link.path, withDestinationPath: "\(profile).env")
@@ -76,7 +78,7 @@ public final class ProfileStore {
         let link = dir.appendingPathComponent("current")
         guard let dest = try? fm.destinationOfSymbolicLink(atPath: link.path) else { return nil }
         let destURL = URL(fileURLWithPath: dest, relativeTo: dir)
-        guard fm.fileExists(atPath: destURL.path) else { return nil } // broken link
+        guard (try? destURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { return nil }
         return destURL.deletingPathExtension().lastPathComponent
     }
 
@@ -97,7 +99,11 @@ public final class ProfileStore {
         try validate(profile)
         try createGroup(group)
         let file = root.appendingPathComponent(group).appendingPathComponent("\(profile).env")
-        if !fm.fileExists(atPath: file.path) {
+        if fm.fileExists(atPath: file.path) {
+            guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
+                throw ProfileStoreError.profileNotFound(group: group, profile: profile)
+            }
+        } else {
             // Same template as the CLI's `envsw edit` (note the em-dash)
             let template = "# \(group) / \(profile) — KEY=VALUE per line, no \"export\"\n"
             try template.write(to: file, atomically: true, encoding: .utf8)
@@ -108,10 +114,7 @@ public final class ProfileStore {
 
     public func deleteProfile(group: String, profile: String) throws {
         let dir = root.appendingPathComponent(group, isDirectory: true)
-        let file = dir.appendingPathComponent("\(profile).env")
-        guard fm.fileExists(atPath: file.path) else {
-            throw ProfileStoreError.profileNotFound(group: group, profile: profile)
-        }
+        let file = try regularProfileURL(group: group, profile: profile)
         if activeProfile(inGroupDir: dir) == profile { off(group: group) }
         try fm.removeItem(at: file)
     }
@@ -121,17 +124,21 @@ public final class ProfileStore {
     }
 
     public func readProfile(group: String, profile: String) throws -> String {
-        try String(contentsOf: root.appendingPathComponent(group).appendingPathComponent("\(profile).env"),
-                   encoding: .utf8)
+        try String(contentsOf: regularProfileURL(group: group, profile: profile), encoding: .utf8)
     }
 
     public func writeProfile(group: String, profile: String, contents: String) throws {
-        let file = root.appendingPathComponent(group).appendingPathComponent("\(profile).env")
-        guard fm.fileExists(atPath: file.path) else {
-            throw ProfileStoreError.profileNotFound(group: group, profile: profile)
-        }
+        let file = try regularProfileURL(group: group, profile: profile)
         try contents.write(to: file, atomically: true, encoding: .utf8)
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+    }
+
+    private func regularProfileURL(group: String, profile: String) throws -> URL {
+        let file = root.appendingPathComponent(group).appendingPathComponent("\(profile).env")
+        guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
+            throw ProfileStoreError.profileNotFound(group: group, profile: profile)
+        }
+        return file
     }
 
     private func validate(_ name: String) throws {

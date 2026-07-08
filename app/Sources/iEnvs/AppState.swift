@@ -68,9 +68,10 @@ final class AppState: ObservableObject {
     }
 
     func deleteGroup(_ name: String) {
+        let groupPath = store.root.appendingPathComponent(name, isDirectory: true).path
         guard Prompt.confirm(
             title: "Delete group “\(name)”?",
-            message: "This removes the whole ~/.envsw/\(name) directory and all its profiles."
+            message: "This removes the whole \(groupPath) directory and all its profiles."
         ) else { return }
         if run({ try store.deleteGroup(name) }) {
             EditorWindowController.closeGroup(name)
