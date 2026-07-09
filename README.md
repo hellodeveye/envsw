@@ -8,7 +8,7 @@ Switch a whole group of environment variables (dev / staging / prod database cre
 
 ```console
 $ envsw use myapp prod
-myapp → prod (new shells/processes will pick it up)
+myapp → prod (new shells/processes pick it up; open interactive shells refresh before the next command)
 ⚠ production profile active — every new command now targets prod; switch back with envsw use myapp dev
 
 $ envsw list
@@ -24,7 +24,7 @@ Existing tools solve a different shape of this problem:
 - **direnv / shadowenv** switch env by *directory*, not by *environment*, and rely on interactive-shell hooks (they often don't fire in non-interactive shells, e.g. commands run by editors or AI agents).
 - **envchain / dotenvx / dotenv-cli** require a *prefix on every command* (`dotenvx run -f .env.prod -- cmd`).
 
-`envsw` takes the [iHosts](https://github.com/toolinbox/iHosts) approach instead: a global state file (a `current` symlink per group) plus a tiny shell-startup hook. Flip the switch once; every **new** shell and process picks it up automatically — including non-interactive ones.
+`envsw` takes the [iHosts](https://github.com/toolinbox/iHosts) approach instead: a global state file (a `current` symlink per group) plus a tiny shell hook. Flip the switch once; every **new** shell and process picks it up automatically, and already-open interactive zsh/bash shells refresh before the next command.
 
 ## Install
 
@@ -41,23 +41,13 @@ git clone https://github.com/hellodeveye/envsw.git
 cd envsw && ./install.sh
 ```
 
-The installer copies `envsw` to `~/.local/bin` and appends the auto-load hook to `~/.zshenv` (zsh) or `~/.bashrc` (bash). Or do it manually:
+The installer copies `envsw` to `~/.local/bin` and appends or upgrades the auto-load hook in `~/.zshenv` (zsh) or `~/.bashrc` (bash). Or install the binary manually:
 
 ```bash
 install -m 755 envsw ~/.local/bin/envsw
 ```
 
-then add to `~/.zshenv`:
-
-```zsh
-# envsw: auto-load the active env profile of each group
-for _envsw_f in "$HOME"/.envsw/*/current(N); do
-  set -a; source "$_envsw_f"; set +a
-done
-unset _envsw_f
-```
-
-(bash: use `for _envsw_f in "$HOME"/.envsw/*/current; do [ -f "$_envsw_f" ] && { set -a; . "$_envsw_f"; set +a; }; done` in `~/.bashrc`.)
+The canonical hook snippet lives in [`install.sh`](install.sh); it loads active profiles at shell startup and refreshes interactive shells before each command.
 
 ## Usage
 
@@ -87,7 +77,7 @@ MYAPP_DB_URL=mysql://user:pass@dev-host:3306/mydb
 
 ## How it works (and its one limitation)
 
-Environment variables are inherited at process start — nothing can change them inside an already-running process. `envsw use` just repoints a symlink (`~/.envsw/<group>/current`); the shell-startup hook sources every group's `current` file, so each **new** shell/process gets the active profile. Terminals you already have open keep their old values until you open a new one — that's Unix, not a bug.
+Environment variables are inherited at process start — nothing can change them inside an already-running child process. `envsw use` just repoints a symlink (`~/.envsw/<group>/current`); the shell hook sources every group's `current` file, so each **new** shell/process gets the active profile. Already-open interactive zsh/bash terminals reload before the next command, but programs that are already running still need to be restarted.
 
 Set `ENVSW_ROOT` to relocate the profile directory (default `~/.envsw`).
 
@@ -96,6 +86,14 @@ Set `ENVSW_ROOT` to relocate the profile directory (default `~/.envsw`).
 A native macOS menu bar companion lives in [`app/`](app/) — click to switch
 profiles, red icon when a prod-like profile is active, built-in profile
 editor, and it stays in sync with the CLI automatically.
+
+**Download:** grab the latest `iEnvs-*.zip` from the
+[Releases page](https://github.com/hellodeveye/envsw/releases), unzip, and
+drag `iEnvs.app` to `/Applications`. The build isn't notarized (no paid Apple
+Developer account yet), so the first launch needs a Gatekeeper bypass:
+right-click `iEnvs.app` → **Open** → **Open** in the confirmation dialog.
+
+Or build it yourself:
 
 ```bash
 app/scripts/make-app.sh && open app/build/iEnvs.app

@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: swift test --package-path app
+
+      - name: Build iEnvs.app
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: app/scripts/make-app.sh
+
+      - name: Zip app bundle
+        run: |
+          cd app/build
+          ditto -c -k --sequesterRsrc --keepParent iEnvs.app "iEnvs-${{ steps.version.outputs.version }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: iEnvs ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: app/build/iEnvs-${{ steps.version.outputs.version }}.zip
+          body: |
+            Unsigned by Apple (ad-hoc signed, no paid Developer ID yet) — after unzipping,
+            right-click **iEnvs.app** → **Open** the first time to bypass Gatekeeper.
