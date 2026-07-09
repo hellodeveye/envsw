@@ -3,6 +3,7 @@ import Foundation
 public enum ProfileStoreError: Error, Equatable, LocalizedError {
     case invalidName(String)
     case profileNotFound(group: String, profile: String)
+    case groupAlreadyExists(String)
 
     public var errorDescription: String? {
         switch self {
@@ -10,6 +11,8 @@ public enum ProfileStoreError: Error, Equatable, LocalizedError {
             return "Invalid name “\(n)” — must be non-empty, without “/”, not start with “.”, and not be “current”."
         case .profileNotFound(let g, let p):
             return "Profile “\(p)” not found in group “\(g)”."
+        case .groupAlreadyExists(let n):
+            return "A group named “\(n)” already exists."
         }
     }
 }
@@ -86,6 +89,14 @@ public final class ProfileStore {
 
     public func createGroup(_ name: String) throws {
         try validate(name)
+        let dir = root.appendingPathComponent(name, isDirectory: true)
+        if fm.fileExists(atPath: dir.path) {
+            throw ProfileStoreError.groupAlreadyExists(name)
+        }
+        try ensureGroupDirectory(name)
+    }
+
+    private func ensureGroupDirectory(_ name: String) throws {
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
         let dir = root.appendingPathComponent(name, isDirectory: true)
@@ -97,7 +108,7 @@ public final class ProfileStore {
     public func createProfile(group: String, profile: String) throws -> URL {
         try validate(group)
         try validate(profile)
-        try createGroup(group)
+        try ensureGroupDirectory(group)
         let file = root.appendingPathComponent(group).appendingPathComponent("\(profile).env")
         if fm.fileExists(atPath: file.path) {
             guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
@@ -121,6 +132,17 @@ public final class ProfileStore {
 
     public func deleteGroup(_ name: String) throws {
         try fm.removeItem(at: root.appendingPathComponent(name, isDirectory: true))
+    }
+
+    public func renameGroup(_ oldName: String, to newName: String) throws {
+        try validate(oldName)
+        try validate(newName)
+        guard oldName != newName else { return }
+
+        let source = root.appendingPathComponent(oldName, isDirectory: true)
+        let destination = root.appendingPathComponent(newName, isDirectory: true)
+        try fm.moveItem(at: source, to: destination)
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: destination.path)
     }
 
     public func readProfile(group: String, profile: String) throws -> String {

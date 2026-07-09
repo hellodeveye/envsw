@@ -227,11 +227,34 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertEqual(store.scan(), [])
     }
 
+    func testRenameGroupMovesDirectoryAndKeepsProfilesActive() throws {
+        try makeGroup("myapp", profiles: ["dev", "prod"], active: "prod")
+
+        try store.renameGroup("myapp", to: "renamed")
+
+        XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent("myapp").path))
+        XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("renamed/dev.env"), encoding: .utf8), "KEY=dev\n")
+
+        let groups = store.scan()
+        XCTAssertEqual(groups.map(\.name), ["renamed"])
+        XCTAssertEqual(groups[0].profiles.map(\.name), ["dev", "prod"])
+        XCTAssertEqual(groups[0].activeProfileName, "prod")
+    }
+
+    func testCreateGroupRejectsDuplicateName() throws {
+        try store.createGroup("myapp")
+        XCTAssertThrowsError(try store.createGroup("myapp")) { error in
+            XCTAssertEqual(error as? ProfileStoreError, .groupAlreadyExists("myapp"))
+        }
+    }
+
     func testInvalidNamesThrow() {
         for bad in ["", "a/b", ".hidden", "current"] {
             XCTAssertThrowsError(try store.createGroup(bad), "group “\(bad)”")
             XCTAssertThrowsError(try store.createProfile(group: "ok", profile: bad), "profile “\(bad)”")
             XCTAssertThrowsError(try store.use(group: bad, profile: "dev"), "use group “\(bad)”")
+            XCTAssertThrowsError(try store.renameGroup(bad, to: "renamed"), "rename group “\(bad)”")
+            XCTAssertThrowsError(try store.renameGroup("ok", to: bad), "rename to group “\(bad)”")
         }
     }
 }

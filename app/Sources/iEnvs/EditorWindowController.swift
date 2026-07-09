@@ -1,4 +1,4 @@
-import AppKit
+@preconcurrency import AppKit
 import SwiftUI
 
 struct ProfileRef: Hashable {
@@ -6,8 +6,6 @@ struct ProfileRef: Hashable {
     let profile: String
 }
 
-/// Manages plain NSWindows for profile editors (reliable for menu-bar-only
-/// apps, where WindowGroup scenes can open stray windows at launch).
 @MainActor
 enum EditorWindowController {
     private static var windows: [ProfileRef: NSWindow] = [:]
@@ -20,9 +18,14 @@ enum EditorWindowController {
         }
         let view = EditorView(ref: ref).environmentObject(state)
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-        window.title = "\(ref.group) / \(ref.profile)"
-        window.setContentSize(NSSize(width: 520, height: 380))
+        window.title = ref.profile
+        window.subtitle = ref.group
+        window.setContentSize(NSSize(width: 560, height: 400))
+        window.minSize = NSSize(width: 520, height: 360)
         window.isReleasedWhenClosed = false
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.toolbarStyle = .unified
         windows[ref] = window
 
         var token: NSObjectProtocol?

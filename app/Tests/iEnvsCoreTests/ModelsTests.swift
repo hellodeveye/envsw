@@ -2,6 +2,15 @@ import XCTest
 @testable import iEnvsCore
 
 final class ModelsTests: XCTestCase {
+    func testProductionLikeNamesArePlainProfiles() {
+        let dev = Profile(name: "dev", url: URL(fileURLWithPath: "/tmp/g/dev.env"))
+        let prod = Profile(name: "prod", url: URL(fileURLWithPath: "/tmp/g/prod.env"))
+
+        let group = ProfileGroup(name: "g", profiles: [dev, prod], activeProfileName: "prod")
+        XCTAssertEqual(group.profiles.map(\.name), ["dev", "prod"])
+        XCTAssertEqual(group.activeProfileName, "prod")
+    }
+
     func testDangerNamesMatchCLI() {
         for name in ["prod", "production", "online", "live"] {
             XCTAssertTrue(Danger.isDangerous(name), "\(name) should be dangerous")
