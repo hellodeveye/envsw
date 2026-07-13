@@ -31,13 +31,13 @@ Existing tools solve a different shape of this problem:
 One-line install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hellodeveye/envsw/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/postdare/envsw/main/install.sh | bash
 ```
 
 Or install from a local clone:
 
 ```bash
-git clone https://github.com/hellodeveye/envsw.git
+git clone https://github.com/postdare/envsw.git
 cd envsw && ./install.sh
 ```
 
@@ -88,7 +88,7 @@ profiles, red icon when a prod-like profile is active, built-in profile
 editor, and it stays in sync with the CLI automatically.
 
 **Download:** grab the latest `iEnvs-*.zip` from the
-[Releases page](https://github.com/hellodeveye/envsw/releases), unzip, and
+[Releases page](https://github.com/postdare/envsw/releases), unzip, and
 drag `iEnvs.app` to `/Applications`. The build isn't notarized (no paid Apple
 Developer account yet), so the first launch needs a Gatekeeper bypass:
 right-click `iEnvs.app` → **Open** → **Open** in the confirmation dialog.
